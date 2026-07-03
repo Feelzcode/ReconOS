@@ -194,27 +194,11 @@ Toast notifications via `react-hot-toast` for create/update/error states.
 
 ---
 
-## Screenshots checklist
-
-Add captures to `docs/images/` for submission:
-
-| File | Screen |
-|------|--------|
-| `dashboard.png` | Dashboard overview |
-| `invoices.png` | Invoice list |
-| `payment-page.png` | Public `/pay/{token}` |
-| `reconciliation.png` | Review queue + confidence |
-| `treasury.png` | Treasury balance |
-| `homepage.png` | Marketing homepage |
-| `auth.png` | Sign-in split panel |
-| `mobile-invoices.png` | Mobile card layout |
-
----
-
 ## Live URLs
 
 | Environment | URL |
 |-------------|-----|
+| **UI/UX guide (live page)** | https://recon-os-theta.vercel.app/design |
 | **Frontend** | https://recon-os-theta.vercel.app |
 | **API** | https://reconos-api.onrender.com/api |
 | **Public pay example** | `/pay/{paymentToken}` from any invoice |
