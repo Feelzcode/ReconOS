@@ -1,0 +1,28 @@
+# Old separate prototype — never commit
+reconos-web/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies & build output
+node_modules/
+.next/
+dist/
+out/
+build/
+
+# Logs & OS
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Prisma local migrations (use db push / migrate in CI)
+**/prisma/migrations/

@@ -1,0 +1,65 @@
+# ReconOS on Render (Docker) — production env vars
+# Dashboard: New > Blueprint, then paste your secrets (never commit .env)
+#
+# Free-tier cache: Manual Deploy → "Clear build cache & deploy", or bump CACHEBUST
+
+services:
+  - type: web
+    name: reconos-api
+    runtime: docker
+    rootDir: ReconOs_Backend2 (2)/reconos-backend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api/auth/templates
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 7d
+      # Production Nomba host (not sandbox)
+      - key: NOMBA_BASE_URL
+        value: https://api.nomba.com/v1
+      - key: NOMBA_CLIENT_ID
+        sync: false
+      - key: NOMBA_CLIENT_SECRET
+        sync: false
+      - key: NOMBA_WEBHOOK_SECRET
+        sync: false
+      - key: NOMBA_ACCOUNT_ID
+        sync: false
+      - key: NOMBA_SUBACCOUNT_ID
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.0-flash
+      - key: USE_MOCK_NOMBA
+        value: "false"
+      - key: DEMO_MODE_ENABLED
+        value: "false"
+      - key: FRONTEND_URL
+        sync: false
+      - key: CACHEBUST
+        value: "1"
+
+  - type: web
+    name: reconos-web
+    runtime: docker
+    rootDir: ReconOs_Frontend2/reconos-frontend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+      - key: CACHEBUST
+        value: "1"
