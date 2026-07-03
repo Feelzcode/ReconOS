@@ -15,7 +15,7 @@ RUN echo "ReconOS API commit=${RENDER_GIT_COMMIT} cachebust=${CACHEBUST}"
 COPY prisma ./prisma
 RUN npx prisma generate
 COPY . .
-RUN npm run build
+RUN npm run build && test -f dist/main.js
 
 FROM node:20-bookworm-slim AS runner
 WORKDIR /app
