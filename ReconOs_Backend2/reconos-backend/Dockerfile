@@ -29,7 +29,7 @@ COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /app/node_modules/@prisma/client ./node_modules/@prisma/client
 COPY prisma ./prisma
 COPY docker-entrypoint.sh ./
-RUN chmod +x docker-entrypoint.sh
+RUN chmod +x docker-entrypoint.sh && npx prisma generate
 EXPOSE 10000
 ENV PORT=10000
 ENTRYPOINT ["./docker-entrypoint.sh"]
