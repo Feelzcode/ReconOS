@@ -1,14 +1,17 @@
 import axios from 'axios';
 import Cookies from 'js-cookie';
+import { resolvePublicApiUrl } from './public-api-url';
+
+const apiBase = resolvePublicApiUrl();
 
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api',
+  baseURL: apiBase,
   headers: { 'Content-Type': 'application/json' },
 });
 
 /** Unauthenticated client for public payment pages. */
 export const publicApi = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api',
+  baseURL: apiBase,
   headers: { 'Content-Type': 'application/json' },
 });
 

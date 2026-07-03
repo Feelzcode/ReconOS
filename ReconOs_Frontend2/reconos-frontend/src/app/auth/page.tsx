@@ -13,6 +13,7 @@
 
 import { useEffect, Suspense } from 'react';
 import { useMarketingTheme } from '@/lib/use-marketing-theme';
+import { resolvePublicApiUrl } from '@/lib/public-api-url';
 
 const AUTH_CSS = `/* ── RESET ── */
 .reconos-auth *,.reconos-auth *::before,.reconos-auth *::after{box-sizing:border-box;margin:0;padding:0}
@@ -1240,7 +1241,7 @@ async function handleLogin() {
     btn.classList.remove('loading');
     btn.querySelector('.btn-text').textContent = 'Sign in →';
     const msg = err instanceof TypeError && err.message === 'Failed to fetch'
-      ? 'Cannot reach the API. Ensure Backend2 is running on port 3002.'
+      ? 'Cannot reach the API. Check NEXT_PUBLIC_API_URL on Vercel and FRONTEND_URL on Render.'
       : (err.message || 'Invalid email or password.');
     showError(pw, 'loginPwErr', msg);
   }
@@ -1419,7 +1420,7 @@ function AuthContent() {
 
   useEffect(() => {
     (window as Window & { RECONOS_API_URL?: string; __reconosAuthInit?: boolean }).RECONOS_API_URL =
-      process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002/api';
+      resolvePublicApiUrl();
 
     if ((window as Window & { __reconosAuthInit?: boolean }).__reconosAuthInit) return;
 

@@ -29,7 +29,11 @@ async function bootstrap() {
 
   app.enableCors({
     origin: (origin, callback) => {
-      if (!origin || corsOrigins.has(origin)) {
+      if (
+        !origin ||
+        corsOrigins.has(origin) ||
+        origin.endsWith('.vercel.app')
+      ) {
         callback(null, true);
       } else {
         callback(null, false);
