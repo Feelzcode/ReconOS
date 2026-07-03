@@ -129,6 +129,7 @@ reconos/
 
 | Doc | Description |
 |-----|-------------|
+| [**Developer Documentation**](./docs/DEVELOPER_DOCUMENTATION.md) | **Full technical architecture (hackathon submission)** |
 | [Overview](docs/01-overview.md) | Product vision & personas |
 | [Architecture](docs/02-architecture.md) | System design |
 | [Nomba Integration](docs/03-nomba-integration.md) | API usage & webhook flow |
