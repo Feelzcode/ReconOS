@@ -130,6 +130,8 @@ reconos/
 | Doc | Description |
 |-----|-------------|
 | [**Developer Documentation**](./docs/DEVELOPER_DOCUMENTATION.md) | **Full technical architecture (hackathon submission)** |
+| [**UI/UX Design Guide**](./docs/UI_UX_DESIGN.md) | Brand colors, Stripe-inspired dashboard, screen patterns |
+| [**Hackathon Submission Copy**](./docs/HACKATHON_SUBMISSION.md) | Ready-to-paste form answers |
 | [Overview](docs/01-overview.md) | Product vision & personas |
 | [Architecture](docs/02-architecture.md) | System design |
 | [Nomba Integration](docs/03-nomba-integration.md) | API usage & webhook flow |
