@@ -6,7 +6,7 @@
 
 | Service | Root directory |
 |---------|----------------|
-| `reconos-api` | `ReconOs_Backend2 (2)/reconos-backend` |
+| `reconos-api` | `ReconOs_Backend2/reconos-backend` |
 | `reconos-web` | `ReconOs_Frontend2/reconos-frontend` |
 
 ### Steps

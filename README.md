@@ -60,7 +60,7 @@ Invoice Paid
 ### Backend
 
 ```bash
-cd "ReconOs_Backend2 (2)/reconos-backend"
+cd ReconOs_Backend2/reconos-backend
 cp .env.example .env   # fill in values — never commit .env
 npm install
 npx prisma generate
@@ -118,7 +118,7 @@ See [`docs/images/`](docs/images/) — add captures of:
 ```
 reconos/
 ├── ReconOs_Frontend2/reconos-frontend/   # Next.js merchant & public pay UI
-├── ReconOs_Backend2 (2)/reconos-backend/   # NestJS API + reconciliation engine
+├── ReconOs_Backend2/reconos-backend/   # NestJS API + reconciliation engine
 ├── docs/                                  # Detailed documentation
 └── render.yaml                            # Render deployment blueprint
 ```

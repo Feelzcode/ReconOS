@@ -7,7 +7,7 @@ services:
   - type: web
     name: reconos-api
     runtime: docker
-    rootDir: ReconOs_Backend2 (2)/reconos-backend
+    rootDir: ReconOs_Backend2/reconos-backend
     dockerfilePath: ./Dockerfile
     plan: free
     healthCheckPath: /api/auth/templates
