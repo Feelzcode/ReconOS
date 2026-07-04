@@ -14,8 +14,10 @@
 
 ## Next
 
+- Email payment reminders
 - Nomba fee pass-through on invoices
 - PDF statement export
-- Email/WhatsApp payment reminders
-- Redis queue for webhook buffering
-- Screenshots in `docs/images/`
+- Redis queue for webhook buffering at scale
+- Merchant branding on public payment page
+- Full fraud detection (beyond anomaly flags)
+- Screenshots in docs for judge review

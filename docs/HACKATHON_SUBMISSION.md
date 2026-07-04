@@ -45,7 +45,7 @@ Copy-paste answers for the submission form.
 
 ### Still to build
 
-- SMS / email payment reminders
+- Email payment reminders
 - Nomba fee pass-through on invoices
 - PDF statement export
 - Redis queue for webhook buffering at scale
@@ -75,7 +75,8 @@ Public repository. Key paths:
 | **Live app** | https://recon-os-theta.vercel.app |
 | **API (health)** | https://reconos-api.onrender.com/api/auth/templates |
 | **Developer documentation** | https://github.com/Feelzcode/ReconOS/blob/main/docs/DEVELOPER_DOCUMENTATION.md |
-| **UI/UX design guide** | https://github.com/Feelzcode/ReconOS/blob/main/docs/UI_UX_DESIGN.md |
+| **UI/UX design guide (live)** | https://recon-os-theta.vercel.app/design |
+| **UI/UX design guide (GitHub)** | https://github.com/Feelzcode/ReconOS/blob/main/docs/UI_UX_DESIGN.md |
 | **Render blueprint** | `render.yaml` in repo root |
 
 **Demo login:** `admin@royalcrown.edu.ng` / `demo1234` (if production DB seeded)

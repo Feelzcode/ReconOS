@@ -889,12 +889,13 @@ npm run dev                   # http://localhost:3000
 | Mobile/tablet responsive UI | ✅ Shipped |
 | Gemini match explanations | ✅ Shipped |
 | Redis webhook queue | 🔜 Planned |
-| SMS / email payment reminders | 🔜 Planned |
+| Email payment reminders | 🔜 Planned |
 | Nomba fee pass-through on invoices | 🔜 Planned |
 | PDF statement export | 🔜 Planned |
-| Merchant branding on payment page | 🔜 Planned |
+| Merchant branding on public payment page | 🔜 Planned |
 | Automatic settlement reporting (gross/fees/net) | 🔜 Planned |
-| Full fraud detection engine | 🔜 Planned |
+| Full fraud detection (beyond anomaly flags) | 🔜 Planned |
+| Screenshots in docs for judge review | 🔜 Planned |
 
 ---
 
