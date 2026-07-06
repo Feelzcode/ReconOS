@@ -46,6 +46,18 @@ export class EmailService implements OnModuleInit {
     return !!this.config.get<string>('RESEND_API_KEY', '').trim();
   }
 
+  /** Strip accidental quotes from .env / Render dashboard (e.g. `"Name <a@b.com>"`). */
+  private resolveFrom(): string {
+    let from = this.config.get<string>('EMAIL_FROM', '').trim();
+    if (
+      (from.startsWith('"') && from.endsWith('"')) ||
+      (from.startsWith("'") && from.endsWith("'"))
+    ) {
+      from = from.slice(1, -1).trim();
+    }
+    return from || 'ReconOS <onboarding@resend.dev>';
+  }
+
   async send(input: SendEmailInput): Promise<{ id: string }> {
     const apiKey = this.config.get<string>('RESEND_API_KEY', '').trim();
     if (!apiKey) {
@@ -54,9 +66,7 @@ export class EmailService implements OnModuleInit {
       );
     }
 
-    const from =
-      this.config.get<string>('EMAIL_FROM', '').trim() ||
-      'ReconOS <onboarding@resend.dev>';
+    const from = this.resolveFrom();
 
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -195,14 +205,19 @@ export class EmailService implements OnModuleInit {
 
     if (detail && detail.length < 240) return detail;
 
+    if (lower.includes('invalid') && lower.includes('from')) {
+      return (
+        `Sender "${from}" is not valid for Resend. On Render, set EMAIL_FROM to ` +
+        'ReconOS <noreply@yourdomain.com> with no surrounding quotes.'
+      );
+    }
+
     return 'Could not send email. Check EMAIL_FROM matches your verified domain in Resend.';
   }
 
   /** For ops: whether Resend is wired and which sender is configured. */
   getConfigHint(): { configured: boolean; from: string; testOnly: boolean } {
-    const from =
-      this.config.get<string>('EMAIL_FROM', '').trim() ||
-      'ReconOS <onboarding@resend.dev>';
+    const from = this.resolveFrom();
     return {
       configured: this.isConfigured(),
       from,

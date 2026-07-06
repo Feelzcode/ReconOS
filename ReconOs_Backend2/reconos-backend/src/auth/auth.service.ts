@@ -159,7 +159,7 @@ export class AuthService {
       this.otpSecret(),
       { expiresIn: '24h' },
     );
-    const verifyUrl = `${this.emailNotify.dashboardUrl('/auth/verify-email')}?token=${encodeURIComponent(token)}`;
+    const verifyUrl = `${this.emailNotify.dashboardUrl('/auth/verify-email')}?token=${encodeURIComponent(token)}&email=${encodeURIComponent(user.email)}`;
     this.emailNotify.notifyAddress(user.email, 'verify-email', { verifyUrl }, '/dashboard');
   }
 

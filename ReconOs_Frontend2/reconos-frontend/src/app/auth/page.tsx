@@ -692,17 +692,6 @@ const AUTH_CSS = `/* ── RESET ── */
 
 .reconos-auth .forgot-link:hover { opacity:.75; }
 
-.reconos-auth .forgot-feedback {
-  display: none;
-  margin: -8px 0 16px;
-  font-size: 13px;
-  line-height: 1.5;
-  text-align: center;
-  color: var(--green);
-}
-.reconos-auth .forgot-feedback.show { display: block; }
-.reconos-auth .forgot-feedback.error { color: var(--red); }
-
 /* ── SUBMIT BUTTON ── */
 .reconos-auth .btn-submit {
   width:100%;
@@ -1025,10 +1014,8 @@ const AUTH_BODY = `<div class="reconos-auth">
             <input type="checkbox" id="rememberMe">
             <span class="checkbox-label">Remember me</span>
           </label>
-          <a href="#" class="forgot-link" onclick="handleForgotPassword(event);return false;">Forgot password?</a>
+          <a href="/auth/forgot-password" class="forgot-link">Forgot password?</a>
         </div>
-
-        <p class="forgot-feedback" id="forgotFeedback" role="status"></p>
 
         <!-- Submit -->
         <button class="btn-submit" id="loginBtn" onclick="handleLogin()">
@@ -1270,46 +1257,6 @@ async function handleLogin() {
       ? 'Cannot reach the API. Check NEXT_PUBLIC_API_URL on Vercel and FRONTEND_URL on Render.'
       : (err.message || 'Invalid email or password.');
     showError(pw, 'loginPwErr', msg);
-  }
-}
-
-/* ════════════════════════════════
-   FORGOT PASSWORD
-════════════════════════════════ */
-async function handleForgotPassword(e) {
-  if (e) e.preventDefault();
-  const email = document.getElementById('loginEmail');
-  const feedback = document.getElementById('forgotFeedback');
-  feedback.classList.remove('show', 'error');
-  clearError(email);
-
-  if (!isEmail(email.value.trim())) {
-    showError(email, 'loginEmailErr', 'Enter your email address first.');
-    return;
-  }
-
-  feedback.textContent = 'Sending reset link…';
-  feedback.classList.add('show');
-  feedback.classList.remove('error');
-
-  try {
-    const res = await fetch(apiUrl('/auth/forgot-password'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: email.value.trim() }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || 'Could not send reset email');
-    }
-    feedback.textContent =
-      'If an account exists for that email, we sent a reset link. Check your inbox (and spam).';
-  } catch (err) {
-    feedback.classList.add('error');
-    const msg = err instanceof TypeError && err.message === 'Failed to fetch'
-      ? 'Cannot reach the API. Check your connection and try again.'
-      : (err.message || 'Could not send reset email.');
-    feedback.textContent = msg;
   }
 }
 
