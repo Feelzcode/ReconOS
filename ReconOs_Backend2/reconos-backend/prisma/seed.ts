@@ -19,7 +19,7 @@ async function main() {
   // ── ORGANIZATION ──────────────────────────────
   // The school itself is the merchant/organization in ReconOs.
   const org = await prisma.organization.upsert({
-    where: { email: 'admin@royalcrown.edu.ng' },
+    where: { email: 'alisamuel325@gmail.com' },
     update: {
       industryTemplate: 'education',
       customerLabel: 'Students',
@@ -32,18 +32,18 @@ async function main() {
       industryTemplate: 'education',
       customerLabel: 'Students',
       invoiceLabel: 'Invoices',
-      email: 'admin@royalcrown.edu.ng',
+      email: 'alisamuel325@gmail.com',
     },
   });
 
   // ── USER ──────────────────────────────────────
   const user = await prisma.user.upsert({
-    where: { email: 'admin@royalcrown.edu.ng' },
+    where: { email: 'alisamuel325@gmail.com' },
     update: {},
     create: {
       organizationId: org.id,
       name: 'Mrs. Folake Bello',
-      email: 'admin@royalcrown.edu.ng',
+      email: 'alisamuel325@gmail.com',
       passwordHash: await bcrypt.hash('demo1234', 10),
       role: 'OWNER',
     },

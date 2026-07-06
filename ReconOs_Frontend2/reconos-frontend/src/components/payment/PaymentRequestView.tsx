@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { formatNaira, formatDate, cn } from '@/lib/utils';
 import type { PaymentPageData } from '@/lib/api';
+import { PAYMENT_TRACKER, resolvePaymentTracker } from '@/lib/payment-tracker-styles';
 
 type Props = {
   data: PaymentPageData;
@@ -12,28 +13,6 @@ type Props = {
 };
 
 type TrackerKey = PaymentPageData['trackerStatus'];
-
-const TRACKER: Record<
-  TrackerKey,
-  { label: string; badge: string; accent: string; pulse?: boolean }
-> = {
-  AWAITING: {
-    label: 'Awaiting payment',
-    badge: 'bg-info/10 text-info-text',
-    accent: 'border-l-info',
-  },
-  CONFIRMING: {
-    label: 'Payment received — confirming',
-    badge: 'bg-info/10 text-info-text',
-    accent: 'border-l-info',
-    pulse: true,
-  },
-  CONFIRMED: {
-    label: 'Payment confirmed',
-    badge: 'bg-success/10 text-success-text',
-    accent: 'border-l-success',
-  },
-};
 
 function merchantInitials(name: string): string {
   return name
@@ -66,11 +45,11 @@ function dueLabel(dueDate: string): string {
 export function PaymentRequestView({ data, showActions = true, onPrint }: Props) {
   const qrRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
-  const status: TrackerKey =
-    data.trackerStatus ?? (data.paymentStatus === 'PAID' ? 'CONFIRMED' : 'AWAITING');
-  const tracker = TRACKER[status];
+  const status: TrackerKey = resolvePaymentTracker(data);
+  const tracker = PAYMENT_TRACKER[status];
   const isConfirmed = status === 'CONFIRMED';
   const isConfirming = status === 'CONFIRMING';
+  const isPartial = status === 'PARTIAL';
   const customerLabel = data.merchant.customerLabel;
   const walletCredit = data.walletCreditApplied ?? 0;
   const showWalletLine = walletCredit > 0;
@@ -101,8 +80,8 @@ export function PaymentRequestView({ data, showActions = true, onPrint }: Props)
   return (
     <article
       className={cn(
-        'payment-request-doc bg-white text-foreground rounded-DEFAULT border border-border max-w-[480px] mx-auto overflow-hidden shadow-card border-l-4',
-        tracker.accent,
+        'payment-request-doc bg-white text-foreground rounded-DEFAULT border border-border max-w-[480px] mx-auto overflow-hidden shadow-card border-l-[4px] transition-[border-color] duration-500',
+        tracker.accentClass,
       )}
     >
       <div className="p-5 sm:p-6 space-y-5">
@@ -117,7 +96,7 @@ export function PaymentRequestView({ data, showActions = true, onPrint }: Props)
           <span
             className={cn(
               'inline-flex items-center gap-1.5 mt-3 px-2.5 py-1 rounded-full text-[11px] font-semibold',
-              tracker.badge,
+              tracker.badgeClass,
             )}
           >
             <span
@@ -175,38 +154,53 @@ export function PaymentRequestView({ data, showActions = true, onPrint }: Props)
         </section>
 
         {/* Confirmed / receipt */}
-        {isConfirmed && data.receipt && (
-          <section className="rounded-DEFAULT border border-success/30 bg-success-bg p-5 text-center">
-            <div className="text-3xl mb-2 text-success">✓</div>
-            <h3 className="text-lg font-bold text-success-text m-0">Payment successful</h3>
-            <p className="text-sm text-success mt-1 m-0">Receipt ready</p>
-            <div className="mt-4 bg-white rounded-DEFAULT border border-border px-4 py-3 inline-block text-left min-w-[200px]">
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                Receipt no.
+        {isConfirmed && (
+          <PaymentReceivedPanel>
+            <h3 className="text-lg font-bold text-white m-0">Payment successful</h3>
+            <p className="text-sm text-white/70 mt-1 m-0">
+              {data.receipt ? 'Receipt ready' : 'Thank you — your payment was received'}
+            </p>
+            {data.receipt && (
+              <div className="mt-4 bg-white rounded-DEFAULT border border-border px-4 py-3 inline-block text-left min-w-[200px] text-foreground">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Receipt no.
+                </div>
+                <div className="font-mono font-bold text-lg text-foreground">{data.receipt.number}</div>
+                <div className="text-sm font-semibold mt-1">{formatNaira(data.receipt.amount)}</div>
+                <div className="text-xs text-muted-foreground mt-1">{formatDate(data.receipt.paidAt)}</div>
               </div>
-              <div className="font-mono font-bold text-lg text-foreground">{data.receipt.number}</div>
-              <div className="text-sm font-semibold mt-1">{formatNaira(data.receipt.amount)}</div>
-              <div className="text-xs text-muted-foreground mt-1">{formatDate(data.receipt.paidAt)}</div>
-            </div>
-            {showActions && (
+            )}
+            {showActions && data.receipt && (
               <button
                 type="button"
                 onClick={() => (onPrint ? onPrint() : window.print())}
-                className="mt-4 w-full text-sm font-semibold py-3 rounded-DEFAULT bg-primary text-primary-foreground hover:opacity-90 transition-opacity no-print"
+                className="mt-4 w-full text-sm font-semibold py-3 rounded-DEFAULT bg-white text-primary hover:opacity-90 transition-opacity no-print"
               >
                 Download receipt
               </button>
             )}
-          </section>
+          </PaymentReceivedPanel>
         )}
 
         {isConfirming && (
-          <section className="rounded-DEFAULT border border-info/30 bg-info-bg p-4 text-center text-sm">
-            <p className="m-0 font-semibold text-info-text">We received your payment</p>
-            <p className="m-0 mt-1 text-muted-foreground">
+          <PaymentReceivedPanel showIcon={false}>
+            <p className="m-0 font-semibold text-white">We received your payment</p>
+            <p className="m-0 mt-1 text-white/70">
               Reconciling with {data.merchant.name}…
             </p>
-          </section>
+          </PaymentReceivedPanel>
+        )}
+
+        {isPartial && (
+          <PaymentReceivedPanel>
+            <h3 className="text-lg font-bold text-white m-0">Payment received</h3>
+            <p className="text-sm text-white/90 mt-2 m-0">
+              <strong>{formatNaira(data.amountPaid)}</strong> applied to this invoice
+            </p>
+            <p className="text-sm text-white/70 mt-1 m-0">
+              Balance remaining: <strong className="text-white">{formatNaira(data.amountDue)}</strong>
+            </p>
+          </PaymentReceivedPanel>
         )}
 
         {/* How to pay */}
@@ -304,6 +298,28 @@ export function PaymentRequestView({ data, showActions = true, onPrint }: Props)
         Powered by ReconOS
       </footer>
     </article>
+  );
+}
+
+function PaymentReceivedPanel({
+  children,
+  showIcon = true,
+}: {
+  children: React.ReactNode;
+  showIcon?: boolean;
+}) {
+  return (
+    <section className="rounded-DEFAULT border border-primary bg-primary p-5 text-center text-white">
+      {showIcon && (
+        <div
+          className="w-12 h-12 rounded-full border-2 border-[#059669] bg-transparent flex items-center justify-center text-white text-xl font-bold mx-auto mb-3"
+          aria-hidden
+        >
+          ✓
+        </div>
+      )}
+      {children}
+    </section>
   );
 }
 

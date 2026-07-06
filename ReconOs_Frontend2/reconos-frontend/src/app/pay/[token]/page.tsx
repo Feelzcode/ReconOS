@@ -6,7 +6,7 @@ import { publicApi, type PaymentPageData } from '@/lib/api';
 import { PaymentRequestView } from '@/components/payment/PaymentRequestView';
 
 function shouldPoll(status?: PaymentPageData['trackerStatus']) {
-  return status === 'AWAITING' || status === 'CONFIRMING';
+  return status === 'AWAITING' || status === 'CONFIRMING' || status === 'PARTIAL';
 }
 
 export default function PublicPaymentPage() {

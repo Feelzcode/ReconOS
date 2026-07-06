@@ -5,7 +5,7 @@ import { enrichInvoiceAmounts } from '../customers/customer-financial-events';
 import { bankCodeFromName, buildNqrTransferPayload } from '../common/nqr-payload';
 import { paymentPageUrl } from '../common/payment-url';
 
-export type PaymentTrackerStatus = 'AWAITING' | 'CONFIRMING' | 'CONFIRMED';
+export type PaymentTrackerStatus = 'AWAITING' | 'CONFIRMING' | 'PARTIAL' | 'CONFIRMED';
 
 @Injectable()
 export class PayService {
@@ -39,6 +39,8 @@ export class PayService {
   private resolveTrackerStatus(input: {
     invoiceStatus: string;
     amountDue: number;
+    amountPaid: number;
+    bankPaymentsApplied: number;
     matches: Array<{ transaction: { status: string; paymentDate: Date } }>;
     recentPendingTxns: number;
   }): PaymentTrackerStatus {
@@ -52,6 +54,12 @@ export class PayService {
 
     if (matchAwaitingConfirm || input.recentPendingTxns > 0) {
       return 'CONFIRMING';
+    }
+
+    // Auto-matched underpayments become MATCHED + PARTIAL — acknowledge receipt
+    // instead of leaving the page on "Awaiting payment".
+    if (input.amountPaid > 0 || input.bankPaymentsApplied > 0) {
+      return 'PARTIAL';
     }
 
     return 'AWAITING';
@@ -113,6 +121,8 @@ export class PayService {
     const trackerStatus = this.resolveTrackerStatus({
       invoiceStatus: invoice!.status,
       amountDue,
+      amountPaid: enriched.amountPaid,
+      bankPaymentsApplied,
       matches: invoice!.matches,
       recentPendingTxns,
     });

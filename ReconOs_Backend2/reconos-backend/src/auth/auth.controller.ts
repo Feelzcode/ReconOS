@@ -22,6 +22,41 @@ export class LoginDto {
   @IsString() password: string;
 }
 
+export class RefreshDto {
+  @IsString() refreshToken: string;
+}
+
+export class VerifyOtpDto {
+  @IsString() otpSession: string;
+  @IsString() code: string;
+}
+
+export class ResendOtpDto {
+  @IsString() otpSession: string;
+}
+
+export class VerifyEmailDto {
+  @IsString() token: string;
+}
+
+export class ForgotPasswordDto {
+  @IsEmail() email: string;
+}
+
+export class ResetPasswordDto {
+  @IsString() token: string;
+  @IsString() @MinLength(8) password: string;
+}
+
+export class ChangePasswordDto {
+  @IsString() currentPassword: string;
+  @IsString() @MinLength(8) newPassword: string;
+}
+
+export class ResendVerifyEmailDto {
+  @IsEmail() email: string;
+}
+
 export class SetupOrganizationDto {
   @IsIn(['education', 'property', 'healthcare', 'logistics', 'custom'])
   industryTemplate: string;
@@ -41,6 +76,47 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Post('otp/verify')
+  verifyOtp(@Body() dto: VerifyOtpDto) {
+    return this.authService.verifyOtp(dto);
+  }
+
+  @Post('otp/resend')
+  resendOtp(@Body() dto: ResendOtpDto) {
+    return this.authService.resendOtp(dto);
+  }
+
+  @Post('verify-email')
+  verifyEmail(@Body() dto: VerifyEmailDto) {
+    return this.authService.verifyEmail(dto.token);
+  }
+
+  @Post('verify-email/resend')
+  resendVerifyEmail(@Body() dto: ResendVerifyEmailDto) {
+    return this.authService.resendVerifyEmail(dto.email);
+  }
+
+  @Post('forgot-password')
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.email);
+  }
+
+  @Post('reset-password')
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
+  }
+
+  @Patch('password')
+  @UseGuards(JwtAuthGuard)
+  changePassword(@CurrentUser() user: any, @Body() dto: ChangePasswordDto) {
+    return this.authService.changePassword(user.id, dto);
+  }
+
+  @Post('refresh')
+  refresh(@Body() dto: RefreshDto) {
+    return this.authService.refreshSession(dto.refreshToken);
   }
 
   @Get('templates')

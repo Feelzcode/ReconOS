@@ -9,6 +9,7 @@ import { InvoiceStatus, TransactionStatus } from '@prisma/client';
 import { NOMBA_PROVIDER, NombaProvider } from '../nomba/nomba.interface';
 import { sessionIdFromTransaction } from '../nomba/nomba-transaction.util';
 import { merchantRefundFailureMessage } from '../common/merchant-error.util';
+import { EmailNotificationsService } from '../email/email-notifications.service';
 
 @Injectable()
 export class ReconciliationService {
@@ -20,6 +21,7 @@ export class ReconciliationService {
     private engine: ReconciliationEngine,
     private wallet: WalletService,
     @Inject(NOMBA_PROVIDER) private nomba: NombaProvider,
+    private emailNotify: EmailNotificationsService,
   ) {}
 
   async getMatches(organizationId: string) {
@@ -430,6 +432,12 @@ export class ReconciliationService {
           entityId: overpaymentId,
           newValue: { reference: op.transaction.nombaReference, sessionId, reason },
         });
+        this.emailNotify.notifyMerchant(organizationId, 'payment-verification-failed', {
+          amount: Number(op.transaction.amount),
+          customerName: op.customer.name,
+          provider: 'Nomba',
+          reference: op.transaction.nombaReference,
+        }, '/exceptions');
         throw new BadRequestException(
           'Could not verify the original payment before refunding. Please try again in a few moments.',
         );
@@ -503,9 +511,20 @@ export class ReconciliationService {
         dto.refundReference = transfer.reference;
         transferStatus = transfer.status;
 
+        this.emailNotify.notifyMerchant(organizationId, 'refund-initiated', {
+          amount: Number(op.excessAmount),
+          customerName: op.customer.name,
+          reason: 'Overpayment refund',
+        }, '/exceptions');
+
         if (transfer.status === 'failed') {
           finalStatus = 'FAILED';
           failureReason = 'Nomba reported the transfer as failed.';
+          this.emailNotify.notifyMerchant(organizationId, 'refund-failed', {
+            amount: Number(op.excessAmount),
+            customerName: op.customer.name,
+            reason: failureReason,
+          }, '/exceptions');
         } else if (transfer.status === 'pending') {
           // Leave PENDING until Nomba payout webhook confirms settlement.
           await this.prisma.overpaymentAction.update({
@@ -527,7 +546,20 @@ export class ReconciliationService {
             newValue: { refundReference: transfer.reference, excessAmount: op.excessAmount },
           });
 
+          this.emailNotify.notifyMerchant(organizationId, 'refund-processing', {
+            amount: Number(op.excessAmount),
+            customerName: op.customer.name,
+          }, '/exceptions');
+
           return this.prisma.overpaymentAction.findUnique({ where: { id: overpaymentId } });
+        }
+
+        if (transfer.status === 'successful') {
+          this.emailNotify.notifyMerchant(organizationId, 'refund-successful', {
+            amount: Number(op.excessAmount),
+            customerName: op.customer.name,
+            reference: transfer.reference,
+          }, '/exceptions');
         }
         // status === 'successful' → finalStatus stays COMPLETED
       } catch (err) {
@@ -555,6 +587,12 @@ export class ReconciliationService {
           newValue: { excessAmount: op.excessAmount, failureReason, rawError: err instanceof Error ? err.message : String(err) },
         });
 
+        this.emailNotify.notifyMerchant(organizationId, 'refund-failed', {
+          amount: Number(op.excessAmount),
+          customerName: op.customer.name,
+          reason: failureReason,
+        }, '/exceptions');
+
         throw new BadRequestException(failureReason);
       }
     }
@@ -566,6 +604,16 @@ export class ReconciliationService {
           walletBalance: { increment: Number(op.excessAmount) },
         },
       });
+
+      const updatedCustomer = await this.prisma.customer.findUnique({
+        where: { id: op.customerId },
+      });
+
+      this.emailNotify.notifyMerchant(organizationId, 'wallet-credit-created', {
+        customerName: op.customer.name,
+        creditedAmount: Number(op.excessAmount),
+        walletBalance: Number(updatedCustomer?.walletBalance ?? op.excessAmount),
+      }, `/customers/${op.customerId}`);
 
       const walletResult = await this.wallet.applyToOpenInvoices(op.customerId, organizationId);
       if (walletResult.applied > 0) {

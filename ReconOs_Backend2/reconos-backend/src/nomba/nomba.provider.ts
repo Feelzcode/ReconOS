@@ -38,7 +38,6 @@ import {
   FetchVirtualTransactionsDto,
   FetchVirtualTransactionsResponse,
   FetchAccountTransactionsDto,
-  nairaToKobo,
   koboToNaira,
 } from './nomba.interface';
 import { isNombaPaymentSettled, parseNombaApiAmount } from './nomba-transaction.util';
@@ -270,10 +269,7 @@ export class RealNombaProvider implements NombaProvider {
       payload.walletBalance ??
       0;
 
-    // Balance endpoint returns Naira decimal string (e.g. "90.0"), not kobo.
-    const naira = typeof raw === 'string' && raw.includes('.')
-      ? Number(raw)
-      : koboToNaira(Number(raw));
+    const naira = parseNombaApiAmount({ amount: raw });
 
     return {
       subAccountId,
@@ -441,7 +437,8 @@ export class RealNombaProvider implements NombaProvider {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        amount: nairaToKobo(dto.amount),
+        // Nomba bank transfer endpoints expect amount in Naira (e.g. 100), not kobo.
+        amount: dto.amount,
         bankCode: dto.destinationBankCode,
         accountNumber: dto.destinationAccountNumber,
         accountName: verified.accountName,
@@ -501,7 +498,8 @@ export class RealNombaProvider implements NombaProvider {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          amount: nairaToKobo(dto.amount),
+          // Nomba v2 sub-account transfer expects Naira, not kobo (100 not 10000).
+          amount: dto.amount,
           bankCode: dto.destinationBankCode,
           accountNumber: dto.destinationAccountNumber,
           accountName: verified.accountName,
@@ -809,23 +807,9 @@ export class RealNombaProvider implements NombaProvider {
       return this.cachedToken.accessToken;
     }
 
-    // Nomba's training docs show /auth/token/issue and /auth/token/refresh
-    // as the two auth endpoints, but never show a refresh_token field
-    // anywhere in an issue response or a refresh request body — the
-    // documented strategy throughout is simply "cache the access token,
-    // refresh near expiry." An earlier version of this code guessed a
-    // refresh_token grant existed (a common OAuth pattern elsewhere) and
-    // explicitly flagged that guess as unconfirmed. Rather than ship an
-    // unverified field name, refreshAccessToken below sends the same
-    // client_credentials payload as issueAccessToken, just against the
-    // /auth/token/refresh endpoint — the safest interpretation of what's
-    // actually documented, with zero invented fields.
-    try {
-      return await this.refreshAccessToken();
-    } catch (err) {
-      this.logger.warn('Token refresh failed, falling back to full re-issue:', err);
-      return this.issueAccessToken();
-    }
+    // Nomba refresh requires grant_type=refresh_token with a refresh_token
+    // field we never receive from /auth/token/issue — re-issue instead.
+    return this.issueAccessToken();
   }
 
   private async issueAccessToken(): Promise<string> {
@@ -852,36 +836,7 @@ export class RealNombaProvider implements NombaProvider {
     return this.cacheTokenResponse(data);
   }
 
-  private async refreshAccessToken(): Promise<string> {
-    // Mirrors issueAccessToken exactly, just hitting the dedicated
-    // refresh endpoint Nomba's docs list separately from "issue." Their
-    // documentation never shows the refresh request body, so rather than
-    // invent a refresh_token field with no evidence it exists, this
-    // sends the same client_credentials payload — the one thing we know
-    // for certain works, since it's shown directly in their issue example.
-    const response = await fetch(`${this.baseUrl}/auth/token/refresh`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'accountId': this.accountId,
-      },
-      body: JSON.stringify({
-        grant_type: 'client_credentials',
-        client_id: this.clientId,
-        client_secret: this.clientSecret,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Nomba token refresh failed: ${response.status} ${await response.text()}`);
-    }
-
-    const data = await response.json();
-    return this.cacheTokenResponse(data);
-  }
-
-  // Shared by both issue and refresh — caches whatever token came back
-  // and returns the access token.
+  // Shared by issue — caches whatever token came back and returns the access token.
   private cacheTokenResponse(data: any): string {
     const payload = data.data ?? data;
     const accessToken = payload.access_token;

@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ReconciliationEngine } from './reconciliation.engine';
 import { WalletService } from './wallet.service';
 import { AuditService } from '../audit/audit.service';
+import { EmailNotificationsService } from '../email/email-notifications.service';
 import { NormalizedPaymentWebhook, collectNombaPaymentIds } from '../nomba/nomba-webhook.util';
 
 export type PaymentIngestSource = 'nomba' | 'nomba_sync' | 'demo_mock';
@@ -19,6 +20,7 @@ export class PaymentIngestionService {
     private reconciliation: ReconciliationEngine,
     private wallet: WalletService,
     private audit: AuditService,
+    private emailNotify: EmailNotificationsService,
   ) {}
 
   async ingestPayment(
@@ -121,6 +123,20 @@ export class PaymentIngestionService {
           source: opts.source,
         },
       });
+
+      const notifyTemplate = recovered ? 'payment-recovered' : 'payment-received';
+      this.emailNotify.notifyMerchant(customer.organizationId, notifyTemplate, {
+        customerName: customer.name,
+        amount,
+        bankName: customer.bankName ?? undefined,
+        time: new Date().toISOString(),
+        recoveredBy: recovered ? 'Background sync' : undefined,
+        originallyReceived: recovered
+          ? (payment.paymentDate instanceof Date
+              ? payment.paymentDate.toISOString()
+              : String(payment.paymentDate ?? new Date().toISOString()))
+          : undefined,
+      }, '/transactions');
     } else if (opts.organizationId && opts.source === 'demo_mock') {
       await this.audit.log({
         organizationId: opts.organizationId,

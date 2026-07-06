@@ -15,6 +15,7 @@ import { AuditModule } from './audit/audit.module';
 import { NombaModule } from './nomba/nomba.module';
 import { TreasuryModule } from './treasury/treasury.module';
 import { AiModule } from './ai/ai.module';
+import { EmailModule } from './email/email.module';
 import { PayModule } from './pay/pay.module';
 
 @Module({
@@ -30,6 +31,7 @@ import { PayModule } from './pay/pay.module';
     NombaModule,
     AiModule,
     AuditModule,
+    EmailModule,
 
     // Feature modules
     AuthModule,

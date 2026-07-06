@@ -3,6 +3,9 @@ import { Injectable } from '@nestjs/common';
 import { InvoiceStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { EmailNotificationsService } from '../email/email-notifications.service';
+
+const WALLET_LOW_THRESHOLD_NGN = 500;
 
 const AMOUNT_TOLERANCE_PCT = 0.02;
 
@@ -16,6 +19,7 @@ export class WalletService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    private emailNotify: EmailNotificationsService,
   ) {}
 
   async applyToOpenInvoices(customerId: string, organizationId: string): Promise<WalletApplyResult> {
@@ -80,6 +84,13 @@ export class WalletService {
           invoiceNumber: invoice.invoiceNumber,
         },
       });
+
+      this.emailNotify.notifyMerchant(organizationId, 'wallet-credit-applied', {
+        customerName: customer.name,
+        invoiceNumber: invoice.invoiceNumber,
+        creditApplied: applyAmount,
+        balanceRemaining: Math.max(0, invAmount - newAmountPaid),
+      }, `/invoices`);
     }
 
     const totalApplied = Number(customer.walletBalance) - walletRemaining;
@@ -96,6 +107,14 @@ export class WalletService {
         entityId: customerId,
         newValue: { totalApplied, walletRemaining },
       });
+
+      if (walletRemaining > 0 && walletRemaining < WALLET_LOW_THRESHOLD_NGN) {
+        this.emailNotify.notifyMerchant(organizationId, 'wallet-balance-low', {
+          customerName: customer.name,
+          walletBalance: walletRemaining,
+          threshold: WALLET_LOW_THRESHOLD_NGN,
+        }, `/customers/${customerId}`);
+      }
     }
 
     return { applied: totalApplied, invoicesUpdated };

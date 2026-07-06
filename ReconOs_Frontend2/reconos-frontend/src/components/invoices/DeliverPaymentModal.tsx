@@ -1,11 +1,13 @@
 'use client';
 
+import { useState } from 'react';
 import { formatNaira } from '@/lib/utils';
-import { paymentPageUrl } from '@/lib/api';
+import { api, paymentPageUrl } from '@/lib/api';
+import { apiErrorMessage } from '@/lib/merchant-vocabulary';
 import toast from 'react-hot-toast';
 
 type InvoiceDeliver = {
-  id?: string;
+  id: string;
   invoiceNumber: string;
   description?: string;
   amountDue: number;
@@ -13,7 +15,7 @@ type InvoiceDeliver = {
   amountPaid?: number;
   paymentToken: string;
   paymentUrl?: string;
-  customer?: { name: string };
+  customer?: { name: string; email?: string | null };
 };
 
 type Props = {
@@ -24,9 +26,11 @@ type Props = {
 };
 
 export function DeliverPaymentModal({ invoice, customerName, merchantName, onClose }: Props) {
+  const [sendingEmail, setSendingEmail] = useState(false);
   const url = paymentPageUrl(invoice.paymentToken);
   const name = customerName || invoice.customer?.name || 'Customer';
   const due = formatNaira(invoice.amountDue ?? invoice.amount ?? 0);
+  const customerEmail = invoice.customer?.email?.trim();
 
   const copyLink = async () => {
     await navigator.clipboard.writeText(url);
@@ -47,6 +51,22 @@ export function DeliverPaymentModal({ invoice, customerName, merchantName, onClo
 
   const printInvoice = () => {
     window.open(url, '_blank');
+  };
+
+  const sendEmail = async () => {
+    if (!customerEmail) {
+      toast.error('Add an email address on this customer before sending.');
+      return;
+    }
+    setSendingEmail(true);
+    try {
+      await api.post(`/invoices/${invoice.id}/send-email`);
+      toast.success(`Payment request emailed to ${customerEmail}`);
+    } catch (err: unknown) {
+      toast.error(apiErrorMessage(err, 'Could not send email right now'));
+    } finally {
+      setSendingEmail(false);
+    }
   };
 
   return (
@@ -84,11 +104,19 @@ export function DeliverPaymentModal({ invoice, customerName, merchantName, onClo
         <div className="grid grid-cols-2 gap-2">
           <DeliverBtn onClick={copyLink}>Copy link</DeliverBtn>
           <DeliverBtn onClick={openWhatsApp}>WhatsApp</DeliverBtn>
+          <DeliverBtn onClick={sendEmail} disabled={sendingEmail || !customerEmail}>
+            {sendingEmail ? 'Sending…' : 'Email'}
+          </DeliverBtn>
           <DeliverBtn onClick={printInvoice}>Print</DeliverBtn>
-          <DeliverBtn onClick={openPage} primary>
+          <DeliverBtn onClick={openPage} primary className="col-span-2">
             View payment page
           </DeliverBtn>
         </div>
+        {!customerEmail && (
+          <p className="text-[11px] text-warning-text mt-2">
+            Add a customer email to send payment requests by email.
+          </p>
+        )}
 
         <p className="text-[11px] text-muted-foreground mt-4 break-all font-mono">{url}</p>
       </div>
@@ -100,20 +128,25 @@ function DeliverBtn({
   children,
   onClick,
   primary,
+  disabled,
+  className,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   primary?: boolean;
+  disabled?: boolean;
+  className?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`text-sm font-semibold py-2.5 px-3 rounded-sm border transition-colors ${
+      disabled={disabled}
+      className={`text-sm font-semibold py-2.5 px-3 rounded-sm border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
         primary
           ? 'bg-primary text-white border-primary hover:opacity-90'
           : 'bg-white border-border text-foreground hover:border-primary'
-      }`}
+      } ${className ?? ''}`}
     >
       {children}
     </button>

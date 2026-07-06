@@ -5,6 +5,7 @@ import { AuditService } from '../audit/audit.service';
 import { TreasuryService } from '../treasury/treasury.service';
 import { NOMBA_PROVIDER, NombaProvider } from '../nomba/nomba.interface';
 import { buildCustomerFinancialEvents } from './customer-financial-events';
+import { EmailNotificationsService } from '../email/email-notifications.service';
 
 @Injectable()
 export class CustomersService {
@@ -15,6 +16,7 @@ export class CustomersService {
     private audit: AuditService,
     private treasury: TreasuryService,
     @Inject(NOMBA_PROVIDER) private nomba: NombaProvider,
+    private emailNotify: EmailNotificationsService,
   ) {}
 
   async create(dto: { name: string; email?: string; phone?: string }, organizationId: string) {
@@ -51,12 +53,28 @@ export class CustomersService {
         newValue: { name: dto.name, virtualAccountNumber: va.accountNumber },
       });
 
+      this.emailNotify.notifyMerchant(organizationId, 'customer-created', {
+        customerName: dto.name,
+        customerId: customer.id.slice(0, 8).toUpperCase(),
+      }, `/customers/${customer.id}`);
+      this.emailNotify.notifyMerchant(organizationId, 'account-provisioned', {
+        customerName: dto.name,
+        bankName: va.bankName,
+        accountNumber: va.accountNumber,
+        accountName: va.accountName,
+      }, `/customers/${customer.id}`);
+
       return updated;
     } catch (err: any) {
       await this.prisma.customer.delete({ where: { id: customer.id } }).catch(() => {});
 
       const message = String(err?.message ?? err);
       this.logger.error(`Virtual account provisioning failed for ${customer.id}: ${message}`);
+
+      this.emailNotify.notifyMerchant(organizationId, 'account-provisioning-failed', {
+        customerName: dto.name,
+        reason: message.slice(0, 120),
+      }, '/customers');
 
       if (message.includes('fetch failed') || message.includes('ENOTFOUND') || message.includes('getaddrinfo')) {
         throw new ServiceUnavailableException(

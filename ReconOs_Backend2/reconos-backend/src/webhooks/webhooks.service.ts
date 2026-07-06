@@ -3,6 +3,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { EmailNotificationsService } from '../email/email-notifications.service';
 import { PaymentIngestionService } from '../reconciliation/payment-ingestion.service';
 import {
   normalizeNombaWebhook,
@@ -18,6 +19,7 @@ export class WebhooksService {
     private prisma: PrismaService,
     private ingestion: PaymentIngestionService,
     private audit: AuditService,
+    private emailNotify: EmailNotificationsService,
   ) {}
 
   async processWebhookAsync(
@@ -95,6 +97,21 @@ export class WebhooksService {
         viaWebhook: opts.source !== 'demo_mock',
       },
     });
+
+    const orgId = overpayment.customer.organizationId;
+    if (success) {
+      this.emailNotify.notifyMerchant(orgId, 'refund-successful', {
+        amount: Number(overpayment.excessAmount),
+        customerName: overpayment.customer.name,
+        reference: overpayment.refundReference ?? payout.merchantTxRef,
+      }, '/exceptions');
+    } else {
+      this.emailNotify.notifyMerchant(orgId, 'refund-failed', {
+        amount: Number(overpayment.excessAmount),
+        customerName: overpayment.customer.name,
+        reason: `Nomba ${payout.eventType} webhook`,
+      }, '/exceptions');
+    }
 
     this.logger.log(
       `Payout webhook ${payout.eventType} applied to OverpaymentAction ${overpayment.id}`,

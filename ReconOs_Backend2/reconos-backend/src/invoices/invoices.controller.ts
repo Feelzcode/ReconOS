@@ -3,7 +3,7 @@ import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@ne
 import { InvoicesService } from './invoices.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
-import { IsString, IsNumber, IsDateString, IsOptional, IsPositive, MinLength } from 'class-validator';
+import { IsString, IsNumber, IsDateString, IsOptional, IsPositive, MinLength, IsEmail } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateInvoiceDto {
@@ -18,6 +18,10 @@ export class UpdateInvoiceDto {
   @IsOptional() @IsString() status?: string;
   @IsOptional() @IsString() @MinLength(1) description?: string;
   @IsOptional() @IsString() notes?: string;
+}
+
+export class SendInvoiceEmailDto {
+  @IsOptional() @IsEmail() to?: string;
 }
 
 @Controller('invoices')
@@ -48,5 +52,19 @@ export class InvoicesController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateInvoiceDto, @CurrentUser() user: any) {
     return this.invoicesService.update(id, dto, user.organizationId, user.id);
+  }
+
+  @Post(':id/send-email')
+  sendEmail(
+    @Param('id') id: string,
+    @Body() dto: SendInvoiceEmailDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.invoicesService.sendPaymentRequestEmail(
+      id,
+      user.organizationId,
+      user.id,
+      dto,
+    );
   }
 }

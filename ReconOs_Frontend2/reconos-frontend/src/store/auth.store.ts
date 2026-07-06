@@ -7,7 +7,7 @@ interface AuthState {
   token: string | null;
   user: any | null;
   org: any | null;
-  setAuth: (token: string, user: any, org: any) => void;
+  setAuth: (token: string, user: any, org: any, refreshToken?: string) => void;
   updateOrg: (org: any) => void;
   hydrateFromStorage: () => boolean;
   logout: () => void;
@@ -19,9 +19,10 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       user: null,
       org: null,
-      setAuth: (token, user, org) => {
+      setAuth: (token, user, org, refreshToken?: string) => {
         Cookies.set('token', token, { expires: 7 });
         localStorage.setItem('token', token);
+        if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
         localStorage.setItem('user', JSON.stringify(user));
         localStorage.setItem('org', JSON.stringify(org));
         set({ token, user, org });
@@ -62,6 +63,7 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         Cookies.remove('token');
         localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');
         localStorage.removeItem('org');
         set({ token: null, user: null, org: null });

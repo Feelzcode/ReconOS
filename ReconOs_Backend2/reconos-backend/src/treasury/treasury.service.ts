@@ -13,10 +13,12 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { EmailNotificationsService } from '../email/email-notifications.service';
 import { NOMBA_PROVIDER, NombaProvider } from '../nomba/nomba.interface';
 
 /** Nomba/NIP fees — reserve headroom so "full balance" transfers don't fail. */
 const TRANSFER_FEE_BUFFER_NGN = 50;
+const TREASURY_LOW_BALANCE_NGN = 100_000;
 
 @Injectable()
 export class TreasuryService {
@@ -26,6 +28,7 @@ export class TreasuryService {
     private prisma: PrismaService,
     private audit: AuditService,
     private config: ConfigService,
+    private emailNotify: EmailNotificationsService,
     @Inject(NOMBA_PROVIDER) private nomba: NombaProvider,
   ) {}
 
@@ -76,10 +79,10 @@ export class TreasuryService {
 
     const subAccountId = org.nombaSubAccountId ?? (await this.ensureSubAccount(organizationId));
 
-    let withdrawableBalance = 0;
+    let nombaWalletBalance: number | null = null;
     try {
       const nombaBal = await this.nomba.getSubAccountBalance(subAccountId);
-      withdrawableBalance = nombaBal.availableBalance;
+      nombaWalletBalance = nombaBal.availableBalance;
     } catch (err) {
       this.logger.warn(`Balance fetch failed: ${err instanceof Error ? err.message : err}`);
     }
@@ -120,11 +123,14 @@ export class TreasuryService {
     const todayCollections = Number(todayAgg._sum.amount ?? 0);
     const pendingCollections = Number(pendingAgg._sum.amount ?? 0);
     const matchedCollections = Number(matchedAgg._sum.amount ?? 0);
-    const netNombaBalance = Math.max(0, withdrawableBalance - TRANSFER_FEE_BUFFER_NGN);
+    const netNombaBalance =
+      nombaWalletBalance != null
+        ? Math.max(0, nombaWalletBalance - TRANSFER_FEE_BUFFER_NGN)
+        : 0;
+    // Only allow transfers up to what Nomba actually holds — never show DB
+    // matched totals alone when the wallet balance is unknown or zero.
     const availableToTransfer =
-      withdrawableBalance > 0
-        ? Math.min(matchedCollections, netNombaBalance)
-        : matchedCollections;
+      nombaWalletBalance != null ? Math.min(matchedCollections, netNombaBalance) : 0;
 
     return {
       organizationName: org.name,
@@ -133,6 +139,7 @@ export class TreasuryService {
       },
       balance: {
         available: availableToTransfer,
+        nombaWallet: nombaWalletBalance,
         totalCollected: yourCollections,
         today: todayCollections,
         pending: pendingCollections,
@@ -148,7 +155,7 @@ export class TreasuryService {
 
     if (/INSUFFICIENT_BALANCE/i.test(msg)) {
       throw new BadRequestException(
-        'Insufficient cleared balance for this transfer. Try a smaller amount — transfer fees may apply.',
+        'Nomba rejected this transfer — the treasury wallet may not have enough to cover the amount plus outbound fees. Try a smaller amount or refresh the treasury balance.',
       );
     }
     if (/Account not found|lookup failed|404/i.test(msg)) {
@@ -181,6 +188,11 @@ export class TreasuryService {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`Account lookup failed: ${msg}`);
       if (/Account not found|404/i.test(msg)) {
+        this.emailNotify.notifyMerchant(organizationId, 'bank-verification-failed', {
+          bankName: bankCode,
+          accountNumber,
+          reason: 'Account not found',
+        }, '/treasury');
         throw new BadRequestException(
           'Account not found for this bank. Check the account number and bank selection.',
         );
@@ -212,19 +224,30 @@ export class TreasuryService {
 
     const subAccountId = await this.ensureSubAccount(organizationId);
 
+    let nombaWalletBalance: number;
     try {
       const nombaBal = await this.nomba.getSubAccountBalance(subAccountId);
-      const maxTransfer = Math.max(0, nombaBal.availableBalance - TRANSFER_FEE_BUFFER_NGN);
-      if (dto.amount > maxTransfer) {
-        throw new BadRequestException(
-          maxTransfer <= 0
-            ? 'Insufficient cleared balance for a transfer. Transfer fees apply on outbound payments.'
-            : `Maximum transfer available is ₦${maxTransfer.toLocaleString('en-NG')} (transfer fees reserved).`,
-        );
-      }
+      nombaWalletBalance = nombaBal.availableBalance;
     } catch (err) {
-      if (err instanceof BadRequestException) throw err;
-      this.logger.warn(`Pre-transfer balance check skipped: ${err}`);
+      this.logger.error(`Pre-transfer balance check failed: ${err instanceof Error ? err.message : err}`);
+      throw new ServiceUnavailableException(
+        'Could not read your treasury wallet balance. Please try again in a moment.',
+      );
+    }
+
+    const maxTransfer = Math.max(0, nombaWalletBalance - TRANSFER_FEE_BUFFER_NGN);
+    if (dto.amount > maxTransfer) {
+      if (nombaWalletBalance < TREASURY_LOW_BALANCE_NGN) {
+        this.emailNotify.notifyMerchant(organizationId, 'treasury-balance-low', {
+          availableBalance: nombaWalletBalance,
+          pendingWithdrawals: dto.amount,
+        }, '/treasury');
+      }
+      throw new BadRequestException(
+        maxTransfer <= 0
+          ? `Treasury wallet holds ₦${nombaWalletBalance.toLocaleString('en-NG')}. After outbound transfer fees, nothing is available to send right now.`
+          : `Maximum transfer is ₦${maxTransfer.toLocaleString('en-NG')} (Nomba wallet: ₦${nombaWalletBalance.toLocaleString('en-NG')}; transfer fees reserved).`,
+      );
     }
 
     const reference = `WD-${organizationId.slice(0, 8)}-${Date.now()}`;
@@ -256,8 +279,29 @@ export class TreasuryService {
         },
       });
 
+      const destination = `${dto.accountName} •••• ${dto.accountNumber.slice(-4)}`;
+      this.emailNotify.notifyMerchant(organizationId, 'withdrawal-submitted', {
+        amount: dto.amount,
+        destination,
+        time: new Date().toISOString(),
+      }, '/treasury');
+      this.emailNotify.notifyMerchant(organizationId, 'withdrawal-processing', {
+        amount: dto.amount,
+        destination,
+      }, '/treasury');
+      this.emailNotify.notifyMerchant(organizationId, 'withdrawal-successful', {
+        amount: dto.amount,
+        destination,
+        time: new Date().toISOString(),
+      }, '/treasury');
+
       return transfer;
     } catch (err) {
+      this.emailNotify.notifyMerchant(organizationId, 'withdrawal-failed', {
+        amount: dto.amount,
+        destination: `${dto.accountName} •••• ${dto.accountNumber.slice(-4)}`,
+        reason: err instanceof Error ? err.message.slice(0, 120) : 'Transfer failed',
+      }, '/treasury');
       this.mapTransferError(err);
     }
   }

@@ -6,6 +6,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { AiService } from '../ai/ai.service';
+import { EmailNotificationsService } from '../email/email-notifications.service';
 import { Transaction, Invoice, TransactionStatus, InvoiceStatus } from '@prisma/client';
 
 // ── SCORING CONSTANTS ──────────────────────────────────────────────────
@@ -54,6 +55,7 @@ export class ReconciliationEngine {
     private prisma: PrismaService,
     private audit: AuditService,
     private ai: AiService,
+    private emailNotify: EmailNotificationsService,
   ) {}
 
   // ── MAIN ENTRY POINT ─────────────────────────────────────────────────
@@ -246,6 +248,17 @@ export class ReconciliationEngine {
       },
     });
 
+    const customerName =
+      (await this.prisma.customer.findUnique({ where: { id: invoice.customerId }, select: { name: true } }))
+        ?.name ?? 'Customer';
+
+    this.emailNotify.notifyMerchant(invoice.organizationId, 'payment-matched', {
+      invoiceNumber: invoice.invoiceNumber,
+      customerName,
+      amount: Number(transaction.amount),
+      confidence: scores.confidenceScore,
+    }, '/reconciliation');
+
     // UNDERPAID — log it clearly so the customer statement and dashboard
     // surface the remaining balance. No further action needed; invoice
     // stays open at PARTIAL until the next payment arrives.
@@ -260,6 +273,14 @@ export class ReconciliationEngine {
           remainingBalance: settlement.remainingBalance,
         },
       });
+
+      this.emailNotify.notifyMerchant(invoice.organizationId, 'underpayment', {
+        customerName,
+        amount: Number(invoice.amount),
+        amountPaid: settlement.newAmountPaid,
+        balanceRemaining: settlement.remainingBalance,
+        invoiceNumber: invoice.invoiceNumber,
+      }, `/invoices`);
     }
 
     // OVERPAID — create an OverpaymentAction record so the merchant can
@@ -287,6 +308,12 @@ export class ReconciliationEngine {
           excessAmount: settlement.excessAmount,
         },
       });
+
+      this.emailNotify.notifyMerchant(invoice.organizationId, 'overpayment', {
+        customerName,
+        amount: Number(invoice.amount),
+        creditedAmount: settlement.excessAmount,
+      }, '/exceptions');
     }
 
     // Queue AI explanation ASYNC — don't block the response
@@ -345,6 +372,12 @@ export class ReconciliationEngine {
       newValue: { confidence: scores.confidenceScore, reason: scores.matchReason },
     });
 
+    this.emailNotify.notifyMerchant(invoice.organizationId, 'payment-review', {
+      amount: Number(transaction.amount),
+      bestGuess: `${invoice.invoiceNumber} · ${scores.confidenceScore}%`,
+      invoiceNumber: invoice.invoiceNumber,
+    }, '/reconciliation');
+
     // Still generate AI explanation async — ready when merchant opens the review item
     this.generateAiExplanationAsync(match.id, transaction, invoice, scores).catch((err) =>
       this.logger.error(`AI explanation failed for review ${match.id}:`, err),
@@ -360,6 +393,19 @@ export class ReconciliationEngine {
     this.logger.warn(`NO MATCH: transaction ${transaction.id} — creating exception`);
 
     const isAnomaly = await this.detectAnomaly(transaction);
+
+    let organizationId: string | null = null;
+    let customerName = 'Unknown sender';
+    if (transaction.customerId) {
+      const customer = await this.prisma.customer.findUnique({
+        where: { id: transaction.customerId },
+        select: { organizationId: true, name: true },
+      });
+      if (customer) {
+        organizationId = customer.organizationId;
+        customerName = customer.name;
+      }
+    }
 
     const exception = await this.prisma.exception.create({
       data: {
@@ -380,6 +426,21 @@ export class ReconciliationEngine {
     this.generateAiAnomalySummaryAsync(exception.id, transaction).catch((err) =>
       this.logger.error(`AI anomaly summary failed:`, err),
     );
+
+    if (organizationId) {
+      if (isAnomaly) {
+        this.emailNotify.notifyMerchant(organizationId, 'suspicious-payment', {
+          amount: Number(transaction.amount),
+          customerName,
+          reason: 'Unusual amount for this account',
+        }, '/exceptions');
+      } else {
+        this.emailNotify.notifyMerchant(organizationId, 'unmatched-payment', {
+          amount: Number(transaction.amount),
+          customerName,
+        }, '/reconciliation');
+      }
+    }
 
     return {
       invoiceId: null,
@@ -471,6 +532,22 @@ export class ReconciliationEngine {
             amount: Number(transaction.amount),
           },
         });
+
+        let invoiceNumber = 'Unknown';
+        if (sibling.match?.invoiceId) {
+          const inv = await this.prisma.invoice.findUnique({
+            where: { id: sibling.match.invoiceId },
+            select: { invoiceNumber: true },
+          });
+          if (inv) invoiceNumber = inv.invoiceNumber;
+        }
+
+        this.emailNotify.notifyMerchant(customer.organizationId, 'duplicate-payment', {
+          invoiceNumber,
+          amount: Number(transaction.amount),
+          time: `Duplicate · ₦${Number(transaction.amount).toLocaleString('en-NG')}`,
+          originallyReceived: sibling.paymentDate.toISOString(),
+        }, '/transactions');
       }
     }
 

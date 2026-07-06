@@ -133,7 +133,11 @@ export default function TreasuryPage() {
           label="Available to transfer"
           value={isLoading ? '—' : formatNaira(balance?.available ?? 0)}
           highlight
-          delta="Cleared funds in treasury"
+          delta={
+            balance?.nombaWallet != null
+              ? `Nomba wallet ₦${(balance.nombaWallet as number).toLocaleString('en-NG')} · cleared ₦${(balance.cleared ?? 0).toLocaleString('en-NG')}`
+              : 'Cleared funds in treasury'
+          }
         />
         <StatCard
           label="Today's collections"

@@ -105,7 +105,7 @@ async function main() {
 
   const reference = `TEST-WD-${Date.now()}`;
   const body = {
-    amount: Math.round(amount * 100),
+    amount,
     bankCode,
     accountNumber,
     accountName: nameForTransfer,
